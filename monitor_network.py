@@ -5,6 +5,7 @@
 import psutil
 import time
 import threading
+import os
 import matplotlib.pyplot as plt
 
 # グローバル変数で最新の統計を保持
@@ -34,6 +35,10 @@ duration = 10
 top_n = 5
 time_axis = list(range(duration + 1))
 history = {}
+force_no_traffic = os.getenv("FORCE_NO_TRAFFIC", "0").lower() in ("1", "true", "yes")
+
+if force_no_traffic:
+    print("再現モード有効: 通信データを描画対象から除外します")
 
 # スキャナースレッド開始
 scanner_thread = threading.Thread(target=background_scanner, daemon=True)
@@ -77,6 +82,9 @@ print("計測完了。グラフを表示します。")
 
 
 # --- データ整形（集約とソート） ---
+if force_no_traffic:
+    history = {}
+
 sorted_all = sorted(history.items(), key=lambda x: sum(x[1]), reverse=True)
 top_apps_data = sorted_all[:top_n]
 others_raw = sorted_all[top_n:]
@@ -115,7 +123,14 @@ if plot_values:
     ax.stackplot(time_axis, plot_values, labels=plot_labels, alpha=0.8, colors=cmap.colors)
     ax.legend(loc='upper left', title=f"Top {top_n} & Others", bbox_to_anchor=(1, 1))
 else:
-    ax.text(0.5, 0.5, "No traffic detected", ha='center')
+    ax.text(
+        0.5,
+        0.5,
+        "No traffic detected",
+        transform=ax.transAxes,
+        ha='center',
+        va='center'
+    )
 
 ax.set_title("Network Traffic (Drift Corrected & Aggregated)")
 ax.set_xlabel("Time (seconds)")

@@ -28,6 +28,16 @@ python3 monitor_network.py
 
 約12秒で計測完了後、ネットワークトラフィックのグラフが表示されます。
 
+### 3. 再現モード（No traffic表示の確認）
+
+`No traffic detected` の表示を確実に確認したい場合は、再現モードで実行できます。
+
+```bash
+FORCE_NO_TRAFFIC=1 python3 monitor_network.py
+```
+
+このモードでは通信データを描画対象から除外し、データなし時の表示を検証できます。
+
 ## カスタマイズ
 
 `monitor_network.py` の設定部分で以下をカスタマイズできます：
