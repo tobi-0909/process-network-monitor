@@ -115,7 +115,14 @@ if plot_values:
     ax.stackplot(time_axis, plot_values, labels=plot_labels, alpha=0.8, colors=cmap.colors)
     ax.legend(loc='upper left', title=f"Top {top_n} & Others", bbox_to_anchor=(1, 1))
 else:
-    ax.text(0.5, 0.5, "No traffic detected", ha='center')
+    ax.text(
+        0.5,
+        0.5,
+        "No traffic detected",
+        transform=ax.transAxes,
+        ha='center',
+        va='center'
+    )
 
 ax.set_title("Network Traffic (Drift Corrected & Aggregated)")
 ax.set_xlabel("Time (seconds)")
