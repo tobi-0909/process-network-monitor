@@ -15,25 +15,36 @@ class ScannerThreadError(RuntimeError):
     """バックグラウンドスレッドの致命的エラーを表す例外。"""
 
 
+def collect_process_io_totals():
+    """PID単位で短命な参照を使ってプロセス別IO合計を収集する。"""
+    totals_by_name = {}
+
+    for pid in psutil.pids():
+        try:
+            proc = psutil.Process(pid)
+            with proc.oneshot():
+                io = proc.io_counters()
+                name = proc.name()
+
+            total = io.read_bytes + io.write_bytes
+            totals_by_name[name] = totals_by_name.get(name, 0) + total
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess, AttributeError, OSError):
+            continue
+
+    return totals_by_name
+
+
 def background_scanner(latest_stats, stats_lock, stop_event, scanner_errors):
     """バックグラウンドで全プロセスのIOを常にスキャンし続ける。"""
     try:
         while not stop_event.is_set():
-            temp_stats = {}
-            for proc in psutil.process_iter(['name']):
-                try:
-                    io = proc.io_counters()
-                    name = proc.info['name']
-                    total = io.read_bytes + io.write_bytes
-                    temp_stats[name] = temp_stats.get(name, 0) + total
-                except (psutil.NoSuchProcess, psutil.AccessDenied, AttributeError):
-                    continue
+            temp_stats = collect_process_io_totals()
 
             with stats_lock:
                 latest_stats.clear()
                 latest_stats.update(temp_stats)
 
-            time.sleep(0.1)  # CPU負荷を抑えるための微小な休憩
+            stop_event.wait(0.1)  # CPU負荷を抑えつつ、停止要求に素早く反応
     except Exception:
         traceback_text = traceback.format_exc()
         try:
