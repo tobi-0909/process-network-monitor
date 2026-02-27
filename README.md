@@ -38,6 +38,34 @@ FORCE_NO_TRAFFIC=1 python3 monitor_network.py
 
 このモードでは通信データを描画対象から除外し、データなし時の表示を検証できます。
 
+## 長時間実行時のメモリ確認（Issue #11向け）
+
+スキャナの長時間挙動を確認する場合は、以下のように複数回実行してピークRSSの傾向を見ます。
+
+```bash
+python3 - <<'PY'
+import subprocess
+import psutil
+
+for i in range(1, 21):
+	proc = subprocess.Popen(["python3", "monitor_network.py"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+	p = psutil.Process(proc.pid)
+	peak = 0
+	while proc.poll() is None:
+		try:
+			rss = p.memory_info().rss
+			if rss > peak:
+				peak = rss
+		except psutil.Error:
+			break
+	print(f"run={i} peak_rss_kb={peak // 1024}")
+PY
+```
+
+確認ポイント:
+- 実行回数に対してRSSが単調増加し続けないこと
+- 極端な増加が発生しないこと
+
 ## カスタマイズ
 
 `monitor_network.py` の設定部分で以下をカスタマイズできます：
