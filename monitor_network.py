@@ -34,7 +34,7 @@ def collect_process_io_totals():
     return totals_by_name
 
 
-def background_scanner(latest_stats, stats_lock, stop_event, scanner_errors):
+def background_scanner(latest_stats, stats_lock, stop_event, scanner_ready_event, scanner_errors):
     """バックグラウンドで全プロセスのIOを常にスキャンし続ける。"""
     try:
         while not stop_event.is_set():
@@ -44,6 +44,8 @@ def background_scanner(latest_stats, stats_lock, stop_event, scanner_errors):
                 latest_stats.clear()
                 latest_stats.update(temp_stats)
 
+            scanner_ready_event.set()
+
             stop_event.wait(0.1)  # CPU負荷を抑えつつ、停止要求に素早く反応
     except Exception:
         traceback_text = traceback.format_exc()
@@ -51,6 +53,7 @@ def background_scanner(latest_stats, stats_lock, stop_event, scanner_errors):
             scanner_errors.put_nowait(traceback_text)
         except queue.Full:
             pass
+        scanner_ready_event.set()
         stop_event.set()
 
 
@@ -66,6 +69,7 @@ def check_scanner_error(scanner_errors):
 def main():
     scanner_thread = None
     stop_event = threading.Event()
+    scanner_ready_event = threading.Event()
     scanner_errors = queue.Queue(maxsize=1)
     latest_stats = {}
     stats_lock = threading.Lock()
@@ -73,6 +77,7 @@ def main():
     try:
         # --- 設定 ---
         duration = 10
+        scanner_ready_timeout_sec = 5.0
         top_n = 5
         time_axis = list(range(duration + 1))
         history = {}
@@ -84,15 +89,21 @@ def main():
         # スキャナースレッド開始
         scanner_thread = threading.Thread(
             target=background_scanner,
-            args=(latest_stats, stats_lock, stop_event, scanner_errors),
+            args=(latest_stats, stats_lock, stop_event, scanner_ready_event, scanner_errors),
             daemon=True,
         )
         scanner_thread.start()
 
         print(f"{duration}秒間の計測を開始...")
 
-        # 初期データの準備（スキャナが最初のデータを取るまで少し待つ）
-        time.sleep(2)
+        # 初期データの準備（スキャナの初回取得完了を待機）
+        scanner_ready = scanner_ready_event.wait(timeout=scanner_ready_timeout_sec)
+        if not scanner_ready:
+            raise TimeoutError(
+                "スキャナーの初期化がタイムアウトしました。"
+                f"{scanner_ready_timeout_sec:.1f}秒以内に初回スナップショットを取得できませんでした。"
+            )
+
         check_scanner_error(scanner_errors)
 
         with stats_lock:
