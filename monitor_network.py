@@ -109,13 +109,13 @@ def main():
         with stats_lock:
             last_snapshot = latest_stats.copy()
 
-        start_time = time.time()
+        start_time = time.perf_counter()
 
         for t in range(1, duration + 1):
             target_time = start_time + t
 
             # 待機
-            sleep_time = target_time - time.time()
+            sleep_time = target_time - time.perf_counter()
             if sleep_time > 0:
                 time.sleep(sleep_time)
 
@@ -136,7 +136,7 @@ def main():
                 history[name][t] = diff_mb
 
             last_snapshot = current_snapshot
-            print(f"{t}秒経過... (誤差: {time.time() - target_time:.4f}s)")
+            print(f"{t}秒経過... (誤差: {time.perf_counter() - target_time:.4f}s)")
 
         print("計測完了。グラフを表示します。")
 
